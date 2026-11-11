@@ -172,7 +172,10 @@ const STYLE = `
 #product-design .pd-thumb .pd-main-tag { position:absolute; left:4px; bottom:4px; font-size:11px; background:var(--brand,#be123c); color:#fff; border-radius:4px; padding:1px 5px; }
 #product-design .pd-form { display:grid; gap:10px; }
 #product-design .pd-form label { display:block; font-size:12px; color:var(--muted,#6a7975); margin-bottom:4px; font-weight:600; }
-#product-design .pd-form input, #product-design .pd-form select, #product-design .pd-form textarea { width:100%; box-sizing:border-box; }
+#product-design .pd-form input, #product-design .pd-form select, #product-design .pd-form textarea { width:100%; box-sizing:border-box; font:inherit; font-size:13px; color:var(--ink,#10211f); background:var(--surface,#fff); border:1px solid var(--line,#e1e8e6); border-radius:var(--radius-sm,6px); padding:8px 10px; min-height:36px; outline:none; transition:border-color .15s, box-shadow .15s; }
+#product-design .pd-form textarea { resize:vertical; line-height:1.5; }
+#product-design .pd-form input::placeholder, #product-design .pd-form textarea::placeholder { color:#9aa4b5; }
+#product-design .pd-form input:focus, #product-design .pd-form select:focus, #product-design .pd-form textarea:focus { border-color:var(--brand,#be123c); box-shadow:0 0 0 3px var(--brand-ring,rgba(190,18,60,.18)); }
 #product-design .pd-goals { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 #product-design .pd-goal { border:1px solid var(--line,#e1e8e6); border-radius:6px; padding:8px; cursor:pointer; background:var(--surface,#fff); text-align:left; }
 #product-design .pd-goal b { display:block; font-size:13px; color:var(--ink,#10211f); }
