@@ -39,7 +39,7 @@ const modelReply = "```json\n" + JSON.stringify({
       name: "暗夜竞速",
       nameEn: "Night Racer",
       concept: "黑色主体配荧光点缀",
-      palette: [{ hex: "#111111", name: "曜石黑", role: "主色" }, { hex: "bad", name: "x" }],
+      palette: [{ hex: "#111111", name: "曜石黑", role: "主色" }, { hex: "not-a-color", name: "x" }],
       zones: [{ part: "主体", hex: "#111111", colorName: "曜石黑", material: "弹力布" }],
       changes: ["抽绳改为荧光绿"],
       sellingPoints: ["夜跑高可见"],
