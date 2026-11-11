@@ -277,8 +277,14 @@ function friendlyError(error: unknown, timeoutMessage: string) {
     return new Error(upstream ? `${aiHttpErrorMessage(status)}（${upstream.slice(0, 200)}）` : aiHttpErrorMessage(status));
   }
   const message = error instanceof Error ? error.message : String(error);
-  if ((error instanceof Error && error.name === "AbortError") || /aborted|timeout/iu.test(message)) {
+  if ((error instanceof Error && error.name === "AbortError") || /aborted|timeout|ETIMEDOUT/iu.test(message)) {
     return new Error(timeoutMessage);
+  }
+  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH|socket hang up|fetch failed/iu.test(message)) {
+    return new Error("连接不到模型服务：请检查接口地址是否正确、网络是否能访问该服务（海外服务可能需要代理）");
+  }
+  if (/certificate|CERT_|SSL|TLS/iu.test(message)) {
+    return new Error("与模型服务建立安全连接失败（证书校验未通过），请检查网络代理或接口地址");
   }
   return error instanceof Error ? error : new Error(message);
 }

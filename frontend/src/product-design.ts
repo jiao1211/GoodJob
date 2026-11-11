@@ -248,6 +248,9 @@ const STYLE = `
 }
 `;
 
+// 每个挂载点只初始化一次；再次进入页面时只刷新模型列表。
+const mountedRefreshers = new WeakMap<HTMLElement, () => void>();
+
 export function mountProductDesign(root: HTMLElement, host: ProductDesignHost) {
   if (!document.getElementById("productDesignStyles")) {
     const style = document.createElement("style");
@@ -255,11 +258,11 @@ export function mountProductDesign(root: HTMLElement, host: ProductDesignHost) {
     style.textContent = STYLE;
     document.head.appendChild(style);
   }
-  if (root.dataset.pdMounted === "1") {
-    void refreshModels();
+  const existing = mountedRefreshers.get(root);
+  if (existing) {
+    existing();
     return;
   }
-  root.dataset.pdMounted = "1";
 
   let images: UploadedImage[] = [];
   let goal = "colorway";
@@ -376,6 +379,7 @@ export function mountProductDesign(root: HTMLElement, host: ProductDesignHost) {
   renderThumbs();
   renderMain();
   void refreshModels();
+  mountedRefreshers.set(root, () => void refreshModels());
 
   async function addFiles(files: File[]) {
     const room = MAX_IMAGES - images.length;
