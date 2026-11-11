@@ -23,6 +23,14 @@ import {
   recognizeBusinessCard,
   type BusinessCardRecognition
 } from "./business-card-ocr.js";
+import {
+  PRODUCT_DESIGN_GOALS,
+  PRODUCT_DESIGN_MAX_IMAGES,
+  decodeProductDesignImage,
+  generateProductDesignProposals,
+  looksLikeImageModel,
+  renderProductDesignImage
+} from "./product-design.js";
 import { isTradeDocumentOcrMime, recognizeConfiguredTradeDocument, recognizeTradeDocument, type TradeDocumentOcrProvider, type TradeDocumentOcrProviderConfig } from "./trade-document-ocr.js";
 import { getTrackingProvider, isSyncable, buildTrackingUpdate } from "./tracking-provider.js";
 import {
@@ -14675,6 +14683,116 @@ app.post("/api/tools/ocr/jobs/:id/recognize", requireAuth, asyncRoute(async (req
   };
   await store.persist();
   res.json({ job: publicOcrJob(job) });
+}));
+
+const productDesignImageSchema = z.object({
+  image: z.string().min(16).max(3_000_000),
+  mime: z.enum(["image/png", "image/jpeg", "image/webp"])
+});
+
+function usableAiConfig(config: AiModelConfig | null | undefined): config is AiModelConfig {
+  return Boolean(config && config.enabled && config.apiKey && config.baseUrl && config.model);
+}
+
+function productDesignConfig(user: SessionUser, configId: string | undefined, purpose: "vision" | "image") {
+  const configs = getAiConfigs(user);
+  if (configId) return configs.find((item) => item.id === configId) || null;
+  const usable = configs.filter(usableAiConfig);
+  return purpose === "image"
+    ? usable.find((item) => looksLikeImageModel(item)) || null
+    : usable.find((item) => !looksLikeImageModel(item)) || usable[0] || null;
+}
+
+app.get("/api/tools/product-design/models", requireAuth, asyncRoute(async (req, res) => {
+  const configs = getAiConfigs(req.user!).map((item) => ({
+    id: item.id,
+    name: item.name,
+    model: item.model,
+    protocol: item.protocol || "openai-compatible",
+    usable: usableAiConfig(item),
+    imageModel: looksLikeImageModel(item)
+  }));
+  res.json({
+    configs,
+    defaultVisionId: productDesignConfig(req.user!, undefined, "vision")?.id || null,
+    defaultImageId: productDesignConfig(req.user!, undefined, "image")?.id || null
+  });
+}));
+
+app.post("/api/tools/product-design/proposals", requireAuth, asyncRoute(async (req, res) => {
+  const body = z.object({
+    images: z.array(productDesignImageSchema).min(1).max(PRODUCT_DESIGN_MAX_IMAGES),
+    configId: z.string().trim().max(120).optional(),
+    brief: z.object({
+      goal: z.enum(PRODUCT_DESIGN_GOALS).default("colorway"),
+      targetMarket: z.string().trim().max(120).default(""),
+      styleKeywords: z.string().trim().max(200).default(""),
+      brandName: z.string().trim().max(60).default(""),
+      constraints: z.string().trim().max(300).default(""),
+      variantCount: z.coerce.number().int().min(1).max(6).default(3)
+    }).default({})
+  }).parse(req.body);
+  let images;
+  try {
+    images = body.images.map((item) => decodeProductDesignImage(item.image, item.mime));
+  } catch (error) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "产品图片无效" });
+    return;
+  }
+  const config = productDesignConfig(req.user!, body.configId, "vision");
+  if (!usableAiConfig(config)) {
+    res.status(422).json({ message: "未配置可用的 AI 视觉模型，请前往「AI配置」添加支持图片输入的模型（如 gpt-4o、Claude、Gemini、通义千问 VL）" });
+    return;
+  }
+  try {
+    const result = await generateProductDesignProposals(images, body.brief, config);
+    res.json({ ...result, model: { id: config.id, name: config.name, model: config.model } });
+  } catch (error) {
+    res.status(422).json({ message: error instanceof Error ? error.message : "设计方案生成失败" });
+  }
+}));
+
+app.post("/api/tools/product-design/render", requireAuth, asyncRoute(async (req, res) => {
+  const zone = z.object({
+    part: z.string().max(40),
+    hex: z.string().max(7),
+    colorName: z.string().max(60).default(""),
+    material: z.string().max(100).default("")
+  });
+  const body = productDesignImageSchema.extend({
+    configId: z.string().trim().max(120).optional(),
+    brandName: z.string().trim().max(60).default(""),
+    proposal: z.object({
+      id: z.string().max(20).default("p1"),
+      name: z.string().max(40).default(""),
+      nameEn: z.string().max(60).default(""),
+      concept: z.string().max(400).default(""),
+      targetCustomer: z.string().max(160).default(""),
+      palette: z.array(z.object({ hex: z.string().max(7), name: z.string().max(40).default(""), role: z.string().max(20).default("") })).max(6).default([]),
+      zones: z.array(zone).max(16).default([]),
+      changes: z.array(z.string().max(200)).max(10).default([]),
+      sellingPoints: z.array(z.string().max(160)).max(8).default([]),
+      renderPrompt: z.string().max(1_500).default("")
+    })
+  }).parse(req.body);
+  let image;
+  try {
+    image = decodeProductDesignImage(body.image, body.mime);
+  } catch (error) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "产品图片无效" });
+    return;
+  }
+  const config = productDesignConfig(req.user!, body.configId, "image");
+  if (!usableAiConfig(config)) {
+    res.status(422).json({ message: "未找到可用的图像生成模型。请在「AI配置」中添加图像模型（如 OpenAI gpt-image-1、Gemini gemini-2.5-flash-image、豆包 doubao-seedream），或在本页手动选择渲染模型" });
+    return;
+  }
+  try {
+    const render = await renderProductDesignImage(image, body.proposal, config, { brandName: body.brandName });
+    res.json({ ...render, model: { id: config.id, name: config.name, model: config.model } });
+  } catch (error) {
+    res.status(422).json({ message: error instanceof Error ? error.message : "效果图生成失败" });
+  }
 }));
 
 app.post("/api/tools/ocr/jobs/:id/sync-lead", requireAuth, asyncRoute(async (req, res) => {

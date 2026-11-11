@@ -4071,6 +4071,7 @@ const viewLabels: Record<string, string> = {
   "database-maintenance": "数据库维护",
   "ai-config": "AI配置",
   "business-card": "名片识别",
+  "product-design": "产品设计稿",
   "agent-skills": "Agent Skills",
   "maintenance-center": "自动维护中心",
   "outreach-batches": "自动发信",
@@ -41761,6 +41762,22 @@ async function openEmailReturnDetail(messageId: string) {
   }
 }
 
+async function openProductDesign() {
+  const root = qs<HTMLElement>("#product-design");
+  if (!root) return;
+  try {
+    const { mountProductDesign } = await import("./product-design");
+    mountProductDesign(root, {
+      api,
+      toast,
+      openAiConfig: () => activateNavView("ai-config"),
+      back: () => activateNavView("tools")
+    });
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "产品设计稿模块加载失败", "error");
+  }
+}
+
 function activateNavView(view: string, after?: () => void) {
   if (view === "access-control") view = "member-management";
   if (!qs<HTMLElement>(`#${CSS.escape(view)}`)) view = "dashboard";
@@ -41795,7 +41812,7 @@ function activateNavView(view: string, after?: () => void) {
       && (view !== "customers" || customerOutcome === state.customerOutcomeFilter);
     button.classList.toggle("active", active);
   });
-  if (view === "business-card" || view === "website-verify") {
+  if (view === "business-card" || view === "website-verify" || view === "product-design") {
     qsa<HTMLElement>('.sidebar button[data-view="tools"]').forEach((button) => button.classList.add("active"));
   }
   openSecondaryDropdownForView(view);
@@ -41898,6 +41915,9 @@ function activateNavView(view: string, after?: () => void) {
   }
   if (view === "container-load") {
     renderContainerLoad();
+  }
+  if (view === "product-design") {
+    void openProductDesign();
   }
   if (view === "ai-agent") {
     renderAgent(state.agentRun);
